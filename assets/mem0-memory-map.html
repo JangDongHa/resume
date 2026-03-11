@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Partner Center — AI 컨텍스트 라우팅 시스템</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Noto Sans KR', sans-serif; background: #0d1117; color: #c9d1d9; line-height: 1.6; }
+    code, .mono { font-family: 'JetBrains Mono', monospace; }
+
+    .container { max-width: 1000px; margin: 0 auto; padding: 40px 24px; }
+    h1 { font-size: 26px; font-weight: 700; color: #f0f6fc; }
+    .subtitle { font-size: 13px; color: #8b949e; margin: 4px 0 32px; }
+    .subtitle code { background: #161b22; padding: 2px 6px; border-radius: 4px; font-size: 12px; color: #79c0ff; }
+    h2 { font-size: 15px; font-weight: 600; color: #f0f6fc; margin-bottom: 14px; }
+    .badge { font-size: 10px; background: #238636; color: #fff; padding: 2px 8px; border-radius: 10px; font-weight: 500; vertical-align: middle; margin-left: 6px; }
+
+    /* ── Routing Diagram ── */
+    .routing { margin-bottom: 36px; }
+    .routing-box {
+      background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 28px 24px;
+      display: flex; flex-direction: column; gap: 20px;
+    }
+
+    .route-row {
+      display: flex; align-items: flex-start; gap: 12px;
+    }
+    .route-label {
+      min-width: 140px; padding: 10px 14px; border-radius: 8px; text-align: center;
+      font-size: 12px; font-weight: 600; flex-shrink: 0;
+    }
+    .route-label small { display: block; font-weight: 400; opacity: 0.7; margin-top: 2px; font-size: 11px; }
+    .route-label.trigger { background: #1f2937; border: 1px solid #f97316; color: #fdba74; }
+    .route-label.l1 { background: #1a1e2e; border: 1px solid #a78bfa; color: #c4b5fd; }
+    .route-label.l2 { background: #1a2332; border: 1px solid #60a5fa; color: #93c5fd; }
+    .route-label.l3 { background: #1a2e1a; border: 1px solid #34d399; color: #6ee7b7; }
+
+    .route-arrow { color: #484f58; font-size: 18px; padding-top: 8px; flex-shrink: 0; }
+    .route-detail {
+      flex: 1; background: #0d1117; border: 1px solid #21262d; border-radius: 6px;
+      padding: 10px 14px; font-size: 12px; color: #8b949e; line-height: 1.6;
+    }
+    .route-detail code { color: #79c0ff; font-size: 11px; }
+    .route-detail .kw { color: #ffa657; }
+
+    .route-connector {
+      display: flex; align-items: center; padding-left: 64px; gap: 0;
+    }
+    .route-connector .line { width: 1px; height: 16px; background: #30363d; margin-left: 6px; }
+
+    /* ── Hub ── */
+    .hub { margin-bottom: 36px; }
+    .hub-box {
+      background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 24px;
+    }
+    .hub-center {
+      text-align: center; margin-bottom: 20px;
+    }
+    .hub-center .pill {
+      display: inline-block; background: #1a1e2e; border: 2px solid #a78bfa; border-radius: 10px;
+      padding: 12px 28px; color: #c4b5fd; font-weight: 600; font-size: 14px;
+    }
+    .hub-center .pill small { display: block; font-size: 11px; color: #8b949e; font-weight: 400; margin-top: 3px; }
+    .hub-tree {
+      display: flex; flex-wrap: wrap; gap: 6px; justify-content: center;
+    }
+    .hub-tree .node {
+      background: #0d1117; border: 1px solid #30363d; border-radius: 6px;
+      padding: 8px 14px; font-size: 11px; text-align: center;
+      cursor: pointer; transition: all 0.15s; min-width: 130px;
+    }
+    .hub-tree .node:hover { border-color: #58a6ff; background: #1c2333; }
+    .hub-tree .node.active { border-color: #58a6ff; box-shadow: 0 0 0 1px #58a6ff; background: #1c2333; }
+    .hub-tree .node .fname { color: #79c0ff; font-weight: 500; display: block; font-size: 11px; }
+    .hub-tree .node .meta { color: #484f58; font-size: 10px; }
+
+    /* ── Detail Panel ── */
+    .detail {
+      background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+      margin-bottom: 24px; overflow: hidden;
+      max-height: 0; opacity: 0; transition: max-height 0.3s ease, opacity 0.2s ease, padding 0.3s ease;
+      padding: 0 20px;
+    }
+    .detail.open { max-height: 600px; opacity: 1; padding: 20px; }
+    .detail h3 { font-size: 14px; font-weight: 600; color: #f0f6fc; margin-bottom: 8px; }
+    .detail .tags { display: flex; gap: 4px; margin-bottom: 12px; }
+    .detail .tags span { font-size: 10px; padding: 2px 6px; border-radius: 4px; }
+    .tag-auth { background: #2d1b3d; color: #d2a8ff; }
+    .tag-db { background: #1b2d3d; color: #a8d2ff; }
+    .tag-api { background: #1b3d2d; color: #a8ffd2; }
+    .tag-domain { background: #3d2d1b; color: #ffd2a8; }
+    .tag-infra { background: #3d1b2d; color: #ffa8d2; }
+    .tag-ticket { background: #2d3d1b; color: #d2ffa8; }
+
+    .detail pre {
+      font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #c9d1d9;
+      background: #0d1117; padding: 14px; border-radius: 6px; border: 1px solid #21262d;
+      overflow-x: auto; white-space: pre-wrap; line-height: 1.65; max-height: 380px; overflow-y: auto;
+    }
+
+    /* ── Example Query ── */
+    .example { margin-bottom: 36px; }
+    .example-box {
+      background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 20px;
+    }
+    .ex-step { display: flex; gap: 12px; margin-bottom: 14px; align-items: flex-start; }
+    .ex-step:last-child { margin-bottom: 0; }
+    .ex-num {
+      min-width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 700; flex-shrink: 0;
+    }
+    .ex-num.n1 { background: #f97316; color: #fff; }
+    .ex-num.n2 { background: #a78bfa; color: #fff; }
+    .ex-num.n3 { background: #60a5fa; color: #fff; }
+    .ex-num.n4 { background: #34d399; color: #fff; }
+    .ex-body { font-size: 12px; color: #8b949e; line-height: 1.6; }
+    .ex-body code { color: #79c0ff; background: #0d1117; padding: 1px 4px; border-radius: 3px; font-size: 11px; }
+    .ex-body .user-q { color: #f0f6fc; font-weight: 500; }
+
+    .footer { text-align: center; font-size: 11px; color: #484f58; margin-top: 40px; padding-top: 16px; border-top: 1px solid #21262d; }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <h1>Partner Center — mem0 Memory Routing</h1>
+  <p class="subtitle">
+    <code>156</code> memories &rarr; <code>11</code> files 라우팅 &rarr; AI 에이전트 세션 간 컨텍스트 유지
+  </p>
+
+  <!-- ── Routing Flow ── -->
+  <div class="routing">
+    <h2>3계층 컨텍스트 라우팅 <span class="badge">LIVE</span></h2>
+    <div class="routing-box">
+
+      <div class="route-row">
+        <div class="route-label trigger">Trigger<small>키워드 감지</small></div>
+        <span class="route-arrow mono">→</span>
+        <div class="route-detail">
+          <span class="kw">"파트너센터"</span>, <span class="kw">"RBAC"</span>, <span class="kw">"정산"</span> 등 키워드 감지 시 라우팅 시작
+        </div>
+      </div>
+
+      <div class="route-connector"><div class="line"></div></div>
+
+      <div class="route-row">
+        <div class="route-label l1">Layer 1<small>mem0 API</small></div>
+        <span class="route-arrow mono">→</span>
+        <div class="route-detail">
+          156개 메모리에서 의미 기반 검색 → 관련 정보가 저장된 <strong style="color:#c4b5fd;">파일 경로를 반환</strong>
+        </div>
+      </div>
+
+      <div class="route-connector"><div class="line"></div></div>
+
+      <div class="route-row">
+        <div class="route-label l2">Layer 2<small>Local Memory</small></div>
+        <span class="route-arrow mono">→</span>
+        <div class="route-detail">
+          mem0가 찾아준 경로의 파일을 선택적으로 로드 (전체 읽지 않고 필요한 파일만 참조)
+        </div>
+      </div>
+
+      <div class="route-connector"><div class="line"></div></div>
+
+      <div class="route-row">
+        <div class="route-label l3">Layer 3<small>Source of Truth</small></div>
+        <span class="route-arrow mono">→</span>
+        <div class="route-detail">
+          Layer 1~2로 해결 안 될 때만 원본 문서에 접근 (API JSON 7,670줄, 기획 티켓 80개+)
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── Example ── -->
+  <div class="example">
+    <h2>라우팅 실행 예시</h2>
+    <div class="example-box">
+      <div class="ex-step">
+        <div class="ex-num n1">1</div>
+        <div class="ex-body"><span class="user-q">"파트너센터 매니저 계정 생성 API 만들어줘"</span> &larr; 사용자 입력, <span class="kw">"파트너센터"</span> 키워드 감지</div>
+      </div>
+      <div class="ex-step">
+        <div class="ex-num n2">2</div>
+        <div class="ex-body">mem0가 <code>"매니저 계정"</code> 관련 메모리를 검색하고 → <code>auth-rbac.md</code>, <code>api-spec.md</code> 경로를 반환</div>
+      </div>
+      <div class="ex-step">
+        <div class="ex-num n3">3</div>
+        <div class="ex-body">반환된 경로의 파일만 선택 로드 (81줄 + 89줄 = 170줄). 원본 7,670줄을 읽지 않아도 됨</div>
+      </div>
+      <div class="ex-step">
+        <div class="ex-num n4">4</div>
+        <div class="ex-body">RBAC 구조, API 스펙, 에러코드가 모두 확보되어 정확한 코드 생성 완료 <strong style="color:#34d399;">→ 토큰 97% 절약</strong></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Memory Files ── -->
+  <div class="hub">
+    <h2>메모리 파일 구조 (클릭하여 라우팅 정보 확인)</h2>
+    <div class="hub-box">
+      <div class="hub-center">
+        <div class="pill" id="hubBtn" style="cursor:pointer;">
+          MEMORY.md<small>Hub Index — 67줄, 10개 상세 문서 링크</small>
+        </div>
+      </div>
+      <div class="hub-tree" id="tree"></div>
+    </div>
+  </div>
+
+  <div class="detail" id="detail">
+    <h3 id="dTitle"></h3>
+    <div class="tags" id="dTags"></div>
+    <div id="dRoute" style="margin-bottom:12px;"></div>
+    <pre id="dContent"></pre>
+  </div>
+
+  <div class="footer">Partner Center mem0 Memory Architecture — 장동하 (Roger) · 2026</div>
+</div>
+
+<script>
+const basePath = '~/.claude/projects/.../memory/';
+const files = [
+  { file: "MEMORY.md", lines: 67, desc: "Hub Index — 전체 메모리 진입점", tags: ["domain"],
+    path: basePath + 'MEMORY.md',
+    triggers: ["파트너센터", "partner-center", "modu-api-partner"],
+    routes: "→ 모든 파트너센터 관련 질문의 최초 진입점\n→ 핵심 요약을 읽고, 질문에 맞는 상세 파일 경로를 반환" },
+
+  { file: "partner-center-overview.md", lines: 49, desc: "프로젝트 메타, 기술스택, 팀, 목표 수치", tags: ["domain", "infra"],
+    path: basePath + 'partner-center-overview.md',
+    triggers: ["기술스택", "팀 구성", "목표", "데드라인", "서버 통합"],
+    routes: "→ 프로젝트 메타 정보가 필요할 때 이 파일 경로를 반환" },
+
+  { file: "partner-center-architecture.md", lines: 53, desc: "서비스 구조, Dual DataSource, 환경별 URL", tags: ["infra", "db"],
+    path: basePath + 'partner-center-architecture.md',
+    triggers: ["아키텍처", "DataSource", "서비스 구조", "환경", "URL", "TPS"],
+    routes: "→ 시스템 구조, DB 분리, 환경별 설정 관련 질문 시 이 파일 경로를 반환" },
+
+  { file: "partner-center-auth-rbac.md", lines: 81, desc: "인증 플로우, RBAC 2축, 에러코드", tags: ["auth", "api"],
+    path: basePath + 'partner-center-auth-rbac.md',
+    triggers: ["로그인", "인증", "OTP", "JWT", "RBAC", "권한", "역할", "토큰"],
+    routes: "→ 인증/인가/권한 관련 모든 질문 시 이 파일 경로를 반환" },
+
+  { file: "partner-center-db-schema.md", lines: 48, desc: "DB 10개 테이블, 크로스 DB FK", tags: ["db"],
+    path: basePath + 'partner-center-db-schema.md',
+    triggers: ["테이블", "스키마", "DB", "컬럼", "FK", "엔티티"],
+    routes: "→ DB 스키마, 테이블 구조, 관계 질문 시 이 파일 경로를 반환" },
+
+  { file: "partner-center-api-spec.md", lines: 89, desc: "40+ 엔드포인트, 에러코드 도메인", tags: ["api"],
+    path: basePath + 'partner-center-api-spec.md',
+    triggers: ["API", "엔드포인트", "에러코드", "응답", "페이지네이션"],
+    routes: "→ API 엔드포인트, 요청/응답 스펙 질문 시 이 파일 경로를 반환" },
+
+  { file: "partner-center-domain.md", lines: 60, desc: "BP/STG/Partner 계층, 업무 프로세스", tags: ["domain"],
+    path: basePath + 'partner-center-domain.md',
+    triggers: ["BP", "STG", "도메인", "워크플로우", "승인", "주차장 관리", "상품 관리"],
+    routes: "→ 비즈니스 용어, 업무 프로세스, 승인 워크플로우 질문 시 이 파일 경로를 반환" },
+
+  { file: "partner-center-adr.md", lines: 27, desc: "아키텍처 결정 기록(ADR) 10건", tags: ["infra", "auth"],
+    path: basePath + 'partner-center-adr.md',
+    triggers: ["ADR", "결정", "왜", "이유", "배경"],
+    routes: "→ 설계 결정의 이유/배경 질문 시 이 파일 경로를 반환" },
+
+  { file: "partner-center-conventions.md", lines: 58, desc: "코딩 컨벤션, 모듈 구조, 테스트 규칙", tags: ["api", "infra"],
+    path: basePath + 'partner-center-conventions.md',
+    triggers: ["컨벤션", "코드 스타일", "네이밍", "모듈 구조", "테스트 커버리지"],
+    routes: "→ 코딩 규칙, 파일 구조, 테스트 작성법 질문 시 이 파일 경로를 반환" },
+
+  { file: "partner-center-impl-guide.md", lines: 43, desc: "구현 체크리스트, 가드, 트랜잭션 패턴", tags: ["api", "db"],
+    path: basePath + 'partner-center-impl-guide.md',
+    triggers: ["구현", "체크리스트", "가드", "인터셉터", "Phase", "일정"],
+    routes: "→ 실제 코드 구현 방법, 가드 적용, 일정 질문 시 이 파일 경로를 반환" },
+
+  { file: "partner-center-tickets.md", lines: 57, desc: "PARKING 12개 + NEWPK 45개 티켓 현황", tags: ["ticket"],
+    path: basePath + 'partner-center-tickets.md',
+    triggers: ["티켓", "JIRA", "NEWPK", "PARKING", "에픽", "백로그"],
+    routes: "→ JIRA 티켓, 에픽 분류, 작업 현황 질문 시 이 파일 경로를 반환" }
+];
+
+const tagHtml = t => `<span class="tag-${t}">${t}</span>`;
+const tree = document.getElementById('tree');
+const detail = document.getElementById('detail');
+const dTitle = document.getElementById('dTitle');
+const dTags = document.getElementById('dTags');
+const dRoute = document.getElementById('dRoute');
+const dContent = document.getElementById('dContent');
+let activeNode = null;
+
+function show(f) {
+  dTitle.textContent = f.file + '  (' + f.lines + ' lines)';
+  dTags.innerHTML = f.tags.map(tagHtml).join('');
+  dRoute.innerHTML = `<div style="font-size:12px;color:#8b949e;margin-bottom:4px;">
+    <span style="color:#79c0ff;font-family:'JetBrains Mono',monospace;font-size:11px;">${f.path}</span>
+  </div>`;
+  dContent.textContent =
+`[트리거 키워드]
+${f.triggers.map(t => '  "' + t + '"').join('\n')}
+
+[라우팅 규칙]
+${f.routes}`;
+  detail.classList.add('open');
+}
+
+// Hub button
+document.getElementById('hubBtn').addEventListener('click', () => {
+  if (activeNode) activeNode.classList.remove('active');
+  activeNode = null;
+  show(files[0]);
+});
+
+// Child nodes (skip MEMORY.md = index 0)
+files.slice(1).forEach((f, i) => {
+  const node = document.createElement('div');
+  node.className = 'node';
+  const short = f.file.replace('partner-center-', '');
+  node.innerHTML = `<span class="fname">${short}</span><span class="meta">${f.lines} lines · ${f.desc.split(',')[0].split('—')[0].trim()}</span>`;
+  node.addEventListener('click', () => {
+    if (activeNode) activeNode.classList.remove('active');
+    node.classList.add('active');
+    activeNode = node;
+    show(f);
+  });
+  tree.appendChild(node);
+});
+</script>
+</body>
+</html>
